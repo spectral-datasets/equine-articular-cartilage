@@ -1,4 +1,5 @@
-# equine-articular-cartilage
+# Equine articular cartilage
+
 [Dataset on equine cartilage near infrared spectra, composition, and 
 functional properties](https://www.nature.com/articles/s41597-019-0170-y)
 by Jaakko K. Sarin, Jari Torniainen, Mithilesh Prakash, Lassi Rieppo, 
@@ -12,6 +13,16 @@ the average of the three spectra per sample, and generates the following files:
 * one `.spec` file per sample (as used by [ADAMS](https://adams.cms.waikato.ac.nz/) for spectral data)
 * one `.arff` file with all the samples as used by [WEKA](https://www.cs.waikato.ac.nz/ml/weka/)
 * one `.csv` file with all the samples
+
+
+## Downloads
+
+* [2022.12.15](https://github.com/spectral-datasets/equine-articular-cartilage/releases/tag/v2022.12.15)
+
+  * [.mat](https://github.com/spectral-datasets/equine-articular-cartilage/releases/download/v2022.12.15/nirs_and_references_revised.mat)
+  * [.arff.gz](https://github.com/spectral-datasets/equine-articular-cartilage/releases/download/v2022.12.15/nirs_and_references_revised.arff.gz)
+  * [.csv.gz](https://github.com/spectral-datasets/equine-articular-cartilage/releases/download/v2022.12.15/nirs_and_references_revised.csv.gz)
+  * [.spec](https://github.com/spectral-datasets/equine-articular-cartilage/releases/download/v2022.12.15/nirs_and_references_revised.zip) (as one zip file)
 
 
 ## Links
