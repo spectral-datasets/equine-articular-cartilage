@@ -1,0 +1,93 @@
+# Project: adams
+# Date: 2022-12-15 16:01:50
+# User: fracpete
+# Charset: UTF-8
+# Modules: adams-bootstrapp,adams-compress,adams-core,adams-db,adams-event,adams-excel,adams-heatmap,adams-imaging,adams-imaging-boofcv,adams-json,adams-math,adams-matlab,adams-meta,adams-ml,adams-net,adams-odf,adams-pdf,adams-pyro4,adams-python,adams-r,adams-rats-core,adams-rats-net,adams-rats-redis,adams-rats-rest,adams-rats-webservice,adams-redis,adams-rest,adams-security,adams-spectral-2dim-core,adams-spectral-2dim-handheld,adams-spectral-2dim-r,adams-spectral-2dim-rats,adams-spectral-2dim-webservice,adams-spectral-3way-core,adams-spectral-app,adams-spreadsheet,adams-terminal,adams-visualstats,adams-webservice,adams-webservice-core,adams-weka-lts,adams-xml,adams-yaml
+#
+adams.flow.control.Flow -annotation "Extracts the raw spectra and their associated meta-data and\\nsaves them as .spec files in the chosen output directory.\\nAlso generates a Weka ARFF file and a CSV file in the same directory.\\n\\nDataset:\\nhttps://springernature.figshare.com/articles/dataset/Near_infrared_spectroscopic_measurements_of_equine_articular_cartilage_and_a_set_of_biomechanical_compositional_and_structural_reference_values_/7803845?backTo=/collections/Dataset_on_equine_cartilage_near_infrared_spectra_composition_and_functional_properties/4423139\\n\\nPublication:\\nhttps://www.nature.com/articles/s41597-019-0170-y" -flow-execution-listener adams.flow.execution.NullListener -flow-restart-manager adams.flow.control.flowrestart.NullManager
+ adams.flow.standalone.CallableActors
+  adams.flow.sink.ProgressBar -display-type adams.flow.core.displaytype.Default -writer adams.gui.print.NullWriter -max @{num_records}
+ adams.flow.source.Start
+ adams.flow.control.Trigger -name "prompt user"
+  adams.flow.standalone.SetVariable -name "restore file" -var-name restore -var-value @{flow_filename_long}.props -value-type FILE_FORWARD_SLASHES -expand-value true
+  adams.flow.source.EnterManyValues -name Parameters -stop-if-canceled true -value "adams.flow.source.valuedefinition.FileValueDefinition -name input_file -display Input -help \"the .mat file to convert\" -file-chooser-title Input -extension mat -use-forward-slashes true" -value "adams.flow.source.valuedefinition.DirectoryValueDefinition -name output_dir -display \"Output dir\" -help \"the directory to store the .spec files in\" -file-chooser-title \"Output dir\" -use-forward-slashes true" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name additional_variables -display \"Additional variables?\" -help \"whether to add additional variables to the ARFF/CSV files.\" -type BOOLEAN -default-value false" -output-type MAP -restoration-enabled true -restoration-file @{restore}
+  adams.flow.transformer.MapToVariables
+  adams.flow.transformer.SetVariable -name arff_file -var-name arff_file -var-value @{output_dir}/nirs_and_references_revised.arff -value-type FILE_FORWARD_SLASHES -expand-value true
+  adams.flow.transformer.SetVariable -name csv_file -var-name csv_file -var-value @{output_dir}/nirs_and_references_revised.csv -value-type FILE_FORWARD_SLASHES -expand-value true
+ adams.flow.control.Trigger -name process
+  adams.flow.source.Variable -var-name input_file -conversion adams.data.conversion.StringToString
+  adams.flow.transformer.Mat5FileReader
+  adams.flow.transformer.Mat5FileGetArray -entry-name dataset
+  adams.flow.transformer.SetStorageValue -storage-name dataset
+  adams.flow.control.Tee -name dims
+   adams.flow.transformer.Mat5ArrayInfo -output-array true -type DIMENSIONS
+   adams.flow.transformer.GetArrayElement -index 2
+   adams.flow.transformer.SetVariable -var-name num_records
+  adams.flow.control.Trigger -name "iterate records"
+   adams.flow.standalone.SetVariable -var-name count -var-value 0
+   adams.flow.source.StorageForLoop -upper @{num_records} -variable record -storage dataset
+   adams.flow.transformer.SetVariable -name index -var-name index -var-value 1;@{record} -expand-value true
+   adams.flow.transformer.Convert -conversion "adams.data.conversion.Mat5StructToMap -index @{index}"
+   adams.flow.control.Tee -name progress
+    adams.flow.transformer.IncVariable -var-name count -output-variable-value true
+    adams.flow.sink.CallableSink -callable ProgressBar
+   adams.flow.control.Tee -name sample_id
+    adams.flow.transformer.GetMapValue -key sample_id
+    adams.flow.transformer.Convert -conversion adams.data.conversion.Mat5CharToString
+    adams.flow.transformer.SetVariable -var-name sample_id
+   adams.flow.control.Tee -name bone_type
+    adams.flow.transformer.GetMapValue -key bone_type
+    adams.flow.transformer.Convert -conversion adams.data.conversion.Mat5CharToString
+    adams.flow.transformer.SetVariable -var-name bone_type
+   adams.flow.control.Tee -name cartilage_thickness
+    adams.flow.transformer.GetMapValue -key cartilage_thickness
+    adams.flow.transformer.SetVariable -var-name cartilage_thickness
+   adams.flow.control.Tee -name calcified_layer_thickness
+    adams.flow.transformer.GetMapValue -key calcified_layer_thickness
+    adams.flow.transformer.SetVariable -var-name calcified_layer_thickness
+   adams.flow.control.Tee -name indenter_diameter
+    adams.flow.transformer.GetMapValue -key indenter_diameter
+    adams.flow.transformer.SetVariable -var-name indenter_diameter
+   adams.flow.control.Tee -name wavelength
+    adams.flow.transformer.GetMapValue -key wavelength
+    adams.flow.transformer.Convert -conversion adams.data.conversion.Mat5ArrayToSpreadSheet
+    adams.flow.transformer.SetStorageValue -storage-name combined
+   adams.flow.control.Tee -name raw_spectra
+    adams.flow.transformer.GetMapValue -key raw_spectra
+    adams.flow.transformer.Convert -conversion adams.data.conversion.Mat5ArrayToSpreadSheet
+    adams.flow.transformer.SpreadSheetAppend -storage-name combined
+   adams.flow.control.Trigger -name "generate spectra"
+    adams.flow.source.StorageValue -storage-name combined -conversion adams.data.conversion.UnknownToUnknown
+    adams.flow.transformer.Convert -conversion "adams.data.conversion.SpreadSheetRowsToSpectra -row-wave-number 1 -cols-amplitude 1-last -rows-amplitude 2-last"
+    adams.flow.transformer.SetStorageValue -storage-name spectra
+    adams.flow.transformer.Convert -name "Convert (2)" -conversion "adams.data.conversion.SpectraToMultiSpectrum -custom-comparator adams.data.spectrum.SpectrumComparator"
+    adams.flow.transformer.MultiSpectrumFilter -filter "adams.data.multifilter.Mean -new-format NIR"
+    adams.flow.transformer.SetStorageValue -name "SetStorageValue (2)" -storage-name spectrum
+   adams.flow.control.Trigger -name "update spectrum"
+    adams.flow.source.StorageValue -storage-name spectrum -conversion adams.data.conversion.UnknownToUnknown
+    adams.flow.transformer.SetID -id @{sample_id}
+    adams.flow.transformer.SetSampleDataValue -name cartilage_thickness -field cartilage_thickness[N] -value @{cartilage_thickness}
+    adams.flow.transformer.SetSampleDataValue -name calcified_layer_thickness -field calcified_layer_thickness[N] -value @{calcified_layer_thickness}
+    adams.flow.transformer.SetSampleDataValue -name indenter_diameter -field indenter_diameter[N] -value @{indenter_diameter}
+    adams.flow.transformer.SetSampleDataValue -name bone_type -field bone_type[S] -value @{bone_type}
+    adams.flow.transformer.SetStorageValue -storage-name spectrum
+   adams.flow.control.Trigger -name "output spectrum"
+    adams.flow.source.StorageValue -storage-name spectrum -conversion adams.data.conversion.UnknownToUnknown
+    adams.flow.transformer.SpectrumFileWriter -writer "adams.data.io.output.SimpleSpectrumWriter -output-sample-data true" -dir @{output_dir}
+   adams.flow.control.Trigger -name "generate instance"
+    adams.flow.source.StorageValue -storage-name spectrum -conversion adams.data.conversion.UnknownToUnknown
+    adams.flow.transformer.InstanceGenerator -generator "adams.data.instances.SimpleInstanceGenerator -add-sample-id true -additional bone_type[S] -additional calcified_layer_thickness[N] -additional indenter_diameter[N] -field cartilage_thickness[N] -wave-number-as-suffix true"
+    adams.flow.transformer.WekaRenameRelation -replace nirs_and_references_revised
+    adams.flow.transformer.WekaInstanceBuffer
+    adams.flow.transformer.SetStorageValue -storage-name instances
+ adams.flow.control.CloseCallableDisplay -callable ProgressBar
+ adams.flow.control.ConditionalTrigger -name "no additional variables?" -condition "adams.flow.condition.bool.Expression -expression \"@{additional_variables} = false\""
+  adams.flow.source.StorageValue -storage-name instances -conversion adams.data.conversion.UnknownToUnknown
+  adams.flow.transformer.WekaFilter -filter "weka.filters.unsupervised.attribute.RemoveByName -E ^additional-.*$" -keep true
+  adams.flow.transformer.SetStorageValue -storage-name instances
+ adams.flow.control.Trigger -name "output arff file"
+  adams.flow.source.StorageValue -storage-name instances -conversion adams.data.conversion.UnknownToUnknown
+  adams.flow.sink.WekaFileWriter -output @{arff_file} -saver "weka.core.converters.SimpleArffSaver -decimal 6 -encoding Default"
+ adams.flow.control.Trigger -name "output csv file"
+  adams.flow.source.StorageValue -storage-name instances -conversion adams.data.conversion.UnknownToUnknown
+  adams.flow.sink.WekaFileWriter -output @{csv_file} -saver "weka.core.converters.SimpleArffSaver -decimal 6 -encoding Default"
